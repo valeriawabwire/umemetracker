@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Umeme Tracker</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>">
+<link rel="stylesheet" href="/static/css/style.css">
+<link rel="stylesheet" href="/static/css/components.css">
+<link rel="stylesheet" href="/static/css/extras.css">
+<link rel="manifest" href="/static/pwa/manifest.json">
+<meta name="theme-color" content="#0b1b34">
+<link rel="apple-touch-icon" href="/static/img/icon-192.png">
+<link rel="stylesheet" href="/static/css/features.css">
+</head>
+<body>
+
+<div id="toast" class="toast hidden" role="status"></div>
+
+<!-- ============ AUTH (setup / lock / switch) ============ -->
+<main id="auth-view" class="auth-view hidden">
+  <div class="auth-card">
+    <div class="brand"><span class="brand-bolt">⚡</span><h1>Umeme Tracker</h1></div>
+    <p class="subtitle">Track your KPLC tokens, know your burn rate, and never get caught in the dark.</p>
+
+    <section id="lock-panel" class="hidden">
+      <h2 id="lock-title">Welcome back</h2>
+      <p class="muted" id="lock-meter"></p>
+      <form id="lock-form" novalidate>
+        <label>Enter your 4-digit PIN
+          <input type="password" id="lock-pin" class="pin-input" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="••••">
+        </label>
+        <p class="form-error" id="lock-error"></p>
+        <button type="submit" class="btn btn-primary btn-block">Unlock</button>
+      </form>
+      <button type="button" class="link-btn" id="show-switch-from-lock">Use a different household</button>
+    </section>
+
+    <section id="register-panel" class="hidden">
+      <h2>Set up your household</h2>
+      <p class="muted">Takes 30 seconds. Your PIN keeps your data private.</p>
+      <form id="register-form" novalidate>
+        <label>Household name
+          <input type="text" id="reg-name" maxlength="100" placeholder="e.g. Wabwire Home">
+        </label>
+        <label>KPLC meter number
+          <input type="text" id="reg-meter" maxlength="30" autocomplete="off" placeholder="e.g. 04123456789">
+        </label>
+        <label>Choose a 4-digit PIN
+          <input type="password" id="reg-pin" class="pin-input" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="••••">
+        </label>
+        <label>Confirm PIN
+          <input type="password" id="reg-pin2" class="pin-input" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="••••">
+        </label>
+        <p class="form-error" id="register-error"></p>
+        <button type="submit" class="btn btn-primary btn-block">Create household</button>
+      </form>
+      <button type="button" class="link-btn" id="show-switch-from-register">Already registered? Sign in</button>
+    </section>
+
+    <section id="switch-panel" class="hidden">
+      <h2>Switch household</h2>
+      <p class="muted">Enter the meter number and PIN of the household you want to view.</p>
+      <form id="switch-form" novalidate>
+        <label>KPLC meter number
+          <input type="text" id="switch-meter" maxlength="30" autocomplete="off">
+        </label>
+        <label>PIN
+          <input type="password" id="switch-pin" class="pin-input" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="••••">
+        </label>
+        <p class="form-error" id="switch-error"></p>
+        <button type="submit" class="btn btn-primary btn-block">Open household</button>
+      </form>
+      <button type="button" class="link-btn" id="show-register-from-switch">Register a new household</button>
+      <button type="button" class="link-btn" id="switch-back">Back</button>
+    </section>
+  </div>
+</main>
+
+<!-- ============ DASHBOARD ============ -->
+<div id="app-view" class="hidden">
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand"><span class="brand-bolt">⚡</span><span class="brand-name">Umeme Tracker</span></div>
+      <div class="topbar-right">
+        <div class="household-chip"><strong id="hh-name"></strong><span id="hh-meter"></span></div>
+        <button type="button" class="btn btn-ghost" id="lock-btn">Lock</button>
+        <button type="button" class="btn btn-ghost" id="switch-btn">Switch household</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <section id="status-banner" class="banner banner-neutral">
+      <div class="banner-icon" id="banner-icon">i</div>
+      <div>
+        <h2 id="banner-title"></h2>
+        <p id="banner-text"></p>
+      </div>
+    </section>
+
+    <section class="stats-grid">
+      <div class="stat">
+        <div class="stat-label">Units left (estimate)</div>
+        <div class="stat-value" id="stat-units">—</div>
+        <div class="stat-sub" id="stat-units-sub"></div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Burn rate</div>
+        <div class="stat-value" id="stat-burn">—</div>
+        <div class="stat-sub" id="stat-burn-sub"></div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Days remaining</div>
+        <div class="stat-value" id="stat-days">—</div>
+        <div class="stat-sub" id="stat-days-sub"></div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Avg cost per unit</div>
+        <div class="stat-value" id="stat-cost">—</div>
+        <div class="stat-sub" id="stat-cost-sub"></div>
+      </div>
+    </section>
+
+    <div class="grid-2">
+      <section class="card" id="purchase-card">
+        <div class="card-head"><h2 id="form-title">Log a token purchase</h2></div>
+        <form id="purchase-form" novalidate>
+          <label>Date
+            <input type="date" id="p-date">
+            <span class="field-error" id="e-date"></span>
+          </label>
+          <label>Amount paid (KES)
+            <input type="number" id="p-amount" step="0.01" min="0" placeholder="e.g. 500">
+            <span class="field-error" id="e-amount"></span>
+          </label>
+          <label>Units bought (kWh)
+            <input type="number" id="p-units" step="0.01" min="0" placeholder="e.g. 20.5">
+            <span class="field-error" id="e-units"></span>
+          </label>
+          <label>Units remaining on meter right now
+            <input type="number" id="p-meter" step="0.01" min="0" placeholder="e.g. 3.2">
+            <span class="hint">Read this BEFORE loading the new token.</span>
+            <span class="field-error" id="e-meter"></span>
+          </label>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary" id="p-submit">Add purchase</button>
+            <button type="button" class="btn btn-outline hidden" id="p-cancel">Cancel</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>Trends</h2>
+          <div class="segmented" id="chart-modes">
+            <button type="button" data-mode="usage" class="active">Daily usage</button>
+            <button type="button" data-mode="cost">Cost / unit</button>
+            <button type="button" data-mode="spend">Spend</button>
+          </div>
+        </div>
+        <p class="muted" id="chart-note"></p>
+        <div class="chart-wrap"><canvas id="trend-chart"></canvas></div>
+      </section>
+    </div>
+
+    <section class="card">
+      <div class="card-head"><h2>Monthly spend</h2></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Month</th><th class="num">Purchases</th><th class="num">Units (kWh)</th><th class="num">Total spent</th><th class="num">Avg KES/kWh</th></tr></thead>
+          <tbody id="monthly-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h2>Purchase history</h2></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Date</th><th class="num">Amount</th><th class="num">Units (kWh)</th><th class="num">KES / kWh</th><th class="num">Meter before</th><th></th></tr></thead>
+          <tbody id="history-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card" id="appliance-card">
+      <div class="card-head">
+        <div>
+          <h2>Appliance cost breakdown</h2>
+          <p class="muted">Save the appliances you own. Costs use (Watts × qty × hours ÷ 1000) × cost per unit.</p>
+        </div>
+      </div>
+      <form id="appliance-form" class="form-grid" novalidate>
+        <label>Appliance
+          <select id="a-select"></select>
+        </label>
+        <label id="a-custom-wrap" class="hidden">Custom name
+          <input type="text" id="a-name" maxlength="60" placeholder="e.g. Blender">
+        </label>
+        <label>Watts
+          <input type="number" id="a-watts" min="1" step="1">
+        </label>
+        <label>Quantity
+          <input type="number" id="a-qty" min="1" step="1" value="1">
+        </label>
+        <label>Hours per day
+          <input type="number" id="a-hours" min="0.1" max="24" step="0.1" placeholder="e.g. 4">
+        </label>
+        <label>&nbsp;
+          <button type="submit" class="btn btn-primary">Save appliance</button>
+        </label>
+      </form>
+      <p class="form-error" id="appliance-error"></p>
+
+      <div class="cost-row">
+        <label>Cost per unit (KES/kWh)
+          <input type="number" id="cost-per-unit" step="0.01" min="0">
+        </label>
+        <span class="muted" id="cost-source"></span>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Appliance</th><th class="num">Watts</th><th class="num">Qty</th><th class="num">Hours/day</th><th class="num">kWh/day</th><th class="num">KES/day</th><th class="num">KES/month</th><th>Share</th><th></th></tr></thead>
+          <tbody id="appliance-body"></tbody>
+          <tfoot id="appliance-foot"></tfoot>
+        </table>
+      </div>
+      <div id="compare-box" class="compare-box compare-neutral"></div>
+    </section>
+
+  </main>
+</div>
+
+<script src="/static/js/api.js"></script>
+<script src="/static/js/calc.js"></script>
+<script src="/static/js/chart.js"></script>
+<script src="/static/js/app.js"></script>
+<script src="/static/js/extras.js"></script>
+<script src="/static/js/theme.js"></script>
+<script src="/static/js/money.js"></script>
+<script src="/static/js/alerts.js"></script>
+<script src="/static/js/i18n.js"></script>
+<script src="/static/js/nav.js"></script>
+</body>
+</html>
